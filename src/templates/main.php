@@ -7,6 +7,12 @@
 
     <?= $fontCSS ?>
 
+    <style>
+        /* cursor de bloque: parpadea cuando la linea termina de tipearse */
+        .cursor { animation: blink 1s step-end infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+
     <?php $lastLineIndex = count($lines) - 1; ?>
     <?php for ($i = 0; $i <= $lastLineIndex; ++$i): ?>
         <path id='path<?= $i ?>'>
@@ -60,7 +66,7 @@
         x='<?= $center ? "50%" : "0%" ?>' text-anchor='<?= $center ? "middle" : "start" ?>'
         letter-spacing='<?= $letterSpacing ?>'>
         <textPath xlink:href='#path<?= $i ?>'>
-            <?= $lines[$i] . "\n" ?>
+            <?= $lines[$i] ?><tspan class='cursor'>█</tspan>
         </textPath>
     </text>
 <?php endfor; ?>
