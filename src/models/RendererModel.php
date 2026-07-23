@@ -109,7 +109,7 @@ class RendererModel
         $this->duration = $this->checkNumberPositive($params["duration"] ?? $this->DEFAULTS["duration"], "duration");
         $this->pause = $this->checkNumberNonNegative($params["pause"] ?? $this->DEFAULTS["pause"], "pause");
         $this->repeat = $this->checkBoolean($params["repeat"] ?? $this->DEFAULTS["repeat"]);
-        $this->fontCSS = $this->fetchFontCSS($this->font, $this->weight, $params["lines"]);
+        $this->fontCSS = $this->fetchFontCSS($this->font, $this->weight, $params["lines"] . "█");
         $this->letterSpacing = $this->checkLetterSpacing($params["letterSpacing"] ?? $this->DEFAULTS["letterSpacing"]);
     }
 
