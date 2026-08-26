@@ -61,6 +61,18 @@ class RendererModel
     /** @var string $letterSpacing Letter spacing */
     public $letterSpacing;
 
+    /** @var int $padding Sangria horizontal interna (px) */
+    public $padding;
+
+    /** @var string $borderColor Color del borde de la caja */
+    public $borderColor;
+
+    /** @var int $borderRadius Radio de esquina de la caja */
+    public $borderRadius;
+
+    /** @var int $restPause Pausa en vacio tras borrar, en ms */
+    public $restPause;
+
     /** @var string $template Path to template file */
     public $template;
 
@@ -82,6 +94,10 @@ class RendererModel
         "separator" => ";",
         "random" => "false",
         "letterSpacing" => "normal",
+        "padding" => "0",
+        "borderColor" => "#00000000",
+        "borderRadius" => "0",
+        "restPause" => "0",
     ];
 
     /**
@@ -111,6 +127,10 @@ class RendererModel
         $this->repeat = $this->checkBoolean($params["repeat"] ?? $this->DEFAULTS["repeat"]);
         $this->fontCSS = $this->fetchFontCSS($this->font, $this->weight, $params["lines"] . "█");
         $this->letterSpacing = $this->checkLetterSpacing($params["letterSpacing"] ?? $this->DEFAULTS["letterSpacing"]);
+        $this->padding = $this->checkNumberNonNegative($params["padding"] ?? $this->DEFAULTS["padding"], "padding");
+        $this->borderColor = $this->checkColor($params["borderColor"] ?? $this->DEFAULTS["borderColor"], "borderColor");
+        $this->borderRadius = $this->checkNumberNonNegative($params["borderRadius"] ?? $this->DEFAULTS["borderRadius"], "borderRadius");
+        $this->restPause = $this->checkNumberNonNegative($params["restPause"] ?? $this->DEFAULTS["restPause"], "restPause");
     }
 
     /**

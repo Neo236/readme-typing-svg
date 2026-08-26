@@ -42,6 +42,10 @@ class RendererView
             "pause" => $this->model->pause,
             "repeat" => $this->model->repeat,
             "letterSpacing" => $this->model->letterSpacing,
+            "padding" => $this->model->padding,
+            "borderColor" => $this->model->borderColor,
+            "borderRadius" => $this->model->borderRadius,
+            "restPause" => $this->model->restPause,
         ]);
         // render SVG with output buffering
         ob_start();
