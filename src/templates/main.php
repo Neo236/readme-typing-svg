@@ -46,12 +46,15 @@ if (!defined("AVANCE_EM")) {
         // aparecer de golpe en vez de escribirse. Creciendo solo hasta donde
         // llega el texto, el revelado ocupa todo el tiempo de escritura y
         // todas las lineas van a la misma velocidad por caracter.
-        // Con center=true el texto se ancla al MEDIO del path, asi que acortarlo
-        // lo correria de lugar; ahi se deja el comportamiento original.
-        $anchoTexto = ($largos[$i] + 1) * $size * AVANCE_EM;   // +1 por el cursor
-        $recorrido = $center
-            ? $anchoUtil
-            : max(1, min($anchoUtil, (int) ceil($anchoTexto)));
+        //
+        // En modo terminal el cursor se dibuja aparte (ver mas abajo), asi que
+        // no ocupa lugar en el path. Con center=true o multilinea sigue yendo
+        // pegado al texto y hay que contarlo.
+        $terminal = !$center && !$multiline;
+        $anchoTexto = ($largos[$i] + ($terminal ? 0 : 1)) * $size * AVANCE_EM;
+        $recorrido = $terminal
+            ? max(1, min($anchoUtil, (int) ceil($anchoTexto)))
+            : $anchoUtil;
         ?>
         <path id='path<?= $i ?>'>
             <?php if (!$multiline): ?>
@@ -68,7 +71,7 @@ if (!defined("AVANCE_EM")) {
                 // Los tiempos son PROPORCIONALES al largo de cada linea: asi todas
                 // se escriben y se borran a la misma velocidad por caracter, en vez
                 // de que las largas parezcan apuradas.
-                $prop = max(0.3, $largos[$i] / $maxLargo);
+                $prop = $largos[$i] / $maxLargo;
                 $tEscribir = $duration * $prop;
                 $tSostener = $pause;
                 $tBorrar = $duration * $prop * 0.35;
@@ -86,6 +89,15 @@ if (!defined("AVANCE_EM")) {
                     ? [$vacia, $llena, $llena, $llena, $llena]
                     : [$vacia, $llena, $llena, $vacia, $vacia];
                 $keyTimes = ["0", $k1, $k2, $k3, "1"];
+
+                // El cursor vive en el punto de insercion: arranca donde va a
+                // caer el primer caracter, avanza junto con el texto y vuelve
+                // mientras se borra. Comparte keyTimes con el path para no
+                // desincronizarse nunca.
+                $xFin = $x0 + $recorrido;
+                $cursorX = $freeze
+                    ? [$x0, $xFin, $xFin, $xFin, $xFin]
+                    : [$x0, $xFin, $xFin, $x0, $x0];
                 ?>
                 <animate id='d<?= $i ?>' attributeName='d' begin='<?= $begin ?>'
                     dur='<?= round($total) ?>ms' fill='<?= $freeze ? "freeze" : "remove" ?>'
@@ -107,29 +119,35 @@ if (!defined("AVANCE_EM")) {
                     values='<?= implode(" ; ", $values) ?>' keyTimes='<?= implode(";", $keyTimes) ?>' />
             <?php endif; ?>
         </path>
+    <?php
+    // OJO: cuando el texto va sobre un textPath, el atributo x del <text> NO
+    // lo posiciona, se SUMA como desplazamiento sobre el path. Como el path ya
+    // arranca en m$x0, poner x='$padding' contaba el padding dos veces: el
+    // texto empezaba 20px a la derecha del cursor y los ultimos 20px (dos
+    // caracteres) se salian del path y no se dibujaban. Por eso aca solo se
+    // pone x cuando hace falta anclar al medio.
+    ?>
     <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
         dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
-        x='<?= $center ? "50%" : $padding ?>' text-anchor='<?= $center ? "middle" : "start" ?>'
-        letter-spacing='<?= $letterSpacing ?>'>
-        <textPath xlink:href='#path<?= $i ?>'>
-            <?= $lines[$i] ?><tspan class='cursor'>&#9608;</tspan>
-        </textPath>
-    </text>
-<?php if (!$multiline && !$freeze && $tReposo > 0): ?>
-        <?php
-        // Durante la pausa en vacio la linea no muestra nada, asi que el cursor
-        // se dibuja aparte y parpadea un par de veces antes de la siguiente linea.
-        $resto = max(0.001, 1 - $k3);
-        $m1 = $k3 + $resto * 0.25;
-        $m2 = $k3 + $resto * 0.50;
-        $m3 = $k3 + $resto * 0.75;
-        ?>
-    <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
-        dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
-        x='<?= $center ? "50%" : $padding ?>' y='<?= $yOffset ?>' text-anchor='<?= $center ? "middle" : "start" ?>'
-        opacity='0'>&#9608;<animate attributeName='opacity' begin='d<?= $i ?>.begin'
-            dur='<?= round($total) ?>ms' calcMode='discrete'
-            values='0;1;0;1;0;0' keyTimes='0;<?= $k3 ?>;<?= $m1 ?>;<?= $m2 ?>;<?= $m3 ?>;1' /></text>
+        <?php if ($center): ?>x='50%' <?php endif; ?>text-anchor='<?= $center ? "middle" : "start" ?>'
+        letter-spacing='<?= $letterSpacing ?>'><textPath xlink:href='#path<?= $i ?>'><?= $lines[$i]
+        ?><?php if (!$terminal): ?><tspan class='cursor'>&#9608;</tspan><?php endif; ?></textPath></text>
+<?php if ($terminal): ?>
+    <?php
+    // Cursor de terminal: uno solo por linea, siempre en el punto de insercion.
+    // El <g> lo hace visible unicamente durante el ciclo de SU linea (opacity
+    // vuelve a 0 al terminar la animacion), asi no se superponen los 21.
+    ?>
+    <g opacity='0'><animate attributeName='opacity' begin='d<?= $i ?>.begin'
+            dur='<?= round($total) ?>ms' values='1;1'
+            fill='<?= $freeze ? "freeze" : "remove" ?>' />
+        <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
+            dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
+            x='<?= $x0 ?>' y='<?= $yOffset ?>' text-anchor='start'
+            class='cursor'>&#9608;<animate attributeName='x' begin='d<?= $i ?>.begin'
+                dur='<?= round($total) ?>ms' values='<?= implode(";", $cursorX) ?>'
+                keyTimes='<?= implode(";", $keyTimes) ?>'
+                fill='<?= $freeze ? "freeze" : "remove" ?>' /></text></g>
 <?php endif; ?>
 <?php endfor; ?>
 </svg>
