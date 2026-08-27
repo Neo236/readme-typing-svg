@@ -27,6 +27,15 @@ if (!defined("AVANCE_EM")) {
            poder quedarse solido mientras se escribe y mientras se borra. */
         .cursor { animation: blink 1s step-end infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Esto se anima solo y no para nunca, que es justo lo que WCAG 2.2.2
+           pide poder frenar. CSS no puede detener SMIL, pero si puede esconder
+           lo animado y mostrar en su lugar una linea quieta. */
+        .fijo { display: none; }
+        @media (prefers-reduced-motion: reduce) {
+            .anim { display: none; }
+            .fijo { display: block; }
+        }
     </style>
 
 <?php if ($hayFondo || $hayBorde): ?>
@@ -172,7 +181,7 @@ if (!defined("AVANCE_EM")) {
     // caracteres) se salian del path y no se dibujaban. Por eso aca solo se
     // pone x cuando hace falta anclar al medio.
     ?>
-    <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
+    <text class='anim' font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
         dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
         <?php if ($center): ?>x='50%' <?php endif; ?>text-anchor='<?= $center ? "middle" : "start" ?>'
         letter-spacing='<?= $letterSpacing ?>'><textPath xlink:href='#path<?= $i ?>'><?= $lines[$i]
@@ -183,7 +192,7 @@ if (!defined("AVANCE_EM")) {
     // El <g> lo hace visible unicamente durante el ciclo de SU linea (opacity
     // vuelve a 0 al terminar la animacion), asi no se superponen los 21.
     ?>
-    <g opacity='0'><animate attributeName='opacity' begin='d<?= $i ?>.begin'
+    <g class='anim' opacity='0'><animate attributeName='opacity' begin='d<?= $i ?>.begin'
             dur='<?= round($total) ?>ms' values='1;1'
             fill='<?= $freeze ? "freeze" : "remove" ?>' />
         <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
@@ -199,4 +208,14 @@ if (!defined("AVANCE_EM")) {
                 fill='<?= $freeze ? "freeze" : "remove" ?>' /></text></g>
 <?php endif; ?>
 <?php endfor; ?>
+    <?php
+    // La linea quieta para quien pidio menos movimiento: la primera frase, sin
+    // cursor y sin nada que se mueva. Va una sola vez, fuera del bucle.
+    $yFijo = $multiline ? $size + 5 : $height / 2;
+    ?>
+    <text class='fijo' font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
+        dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
+        x='<?= $center ? "50%" : $padding ?>' y='<?= $yFijo ?>'
+        text-anchor='<?= $center ? "middle" : "start" ?>'
+        letter-spacing='<?= $letterSpacing ?>'><?= $lines[0] ?></text>
 </svg>
