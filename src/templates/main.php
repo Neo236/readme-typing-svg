@@ -8,6 +8,11 @@ $planos = array_map(function ($l) {
 }, $lines);
 $largos = array_map("mb_strlen", $planos);
 $maxLargo = max($largos) ?: 1;
+// Fira Code es monoespaciada y TODOS sus glifos miden 0.6 em, el cursor de
+// bloque U+2588 incluido (verificado sobre el hmtx de la fuente).
+if (!defined("AVANCE_EM")) {
+    define("AVANCE_EM", 0.6);
+}
 ?>
 <svg xmlns='http://www.w3.org/2000/svg'
     xmlns:xlink='http://www.w3.org/1999/xlink'
@@ -34,6 +39,19 @@ $maxLargo = max($largos) ?: 1;
         <?php
         $x0 = $padding;
         $anchoUtil = max(1, $width - 2 * $padding);
+
+        // El texto se revela recortandolo con el largo del path. Si el path
+        // crece hasta el ancho util completo, una linea corta queda entera en
+        // el primer tramo de la animacion y despues no pasa nada: parecia
+        // aparecer de golpe en vez de escribirse. Creciendo solo hasta donde
+        // llega el texto, el revelado ocupa todo el tiempo de escritura y
+        // todas las lineas van a la misma velocidad por caracter.
+        // Con center=true el texto se ancla al MEDIO del path, asi que acortarlo
+        // lo correria de lugar; ahi se deja el comportamiento original.
+        $anchoTexto = ($largos[$i] + 1) * $size * AVANCE_EM;   // +1 por el cursor
+        $recorrido = $center
+            ? $anchoUtil
+            : max(1, min($anchoUtil, (int) ceil($anchoTexto)));
         ?>
         <path id='path<?= $i ?>'>
             <?php if (!$multiline): ?>
@@ -63,7 +81,7 @@ $maxLargo = max($largos) ?: 1;
 
                 $yOffset = $height / 2;
                 $vacia = "m$x0,$yOffset h0";
-                $llena = "m$x0,$yOffset h$anchoUtil";
+                $llena = "m$x0,$yOffset h$recorrido";
                 $values = $freeze
                     ? [$vacia, $llena, $llena, $llena, $llena]
                     : [$vacia, $llena, $llena, $vacia, $vacia];
@@ -80,7 +98,7 @@ $maxLargo = max($largos) ?: 1;
                 $lineDuration = ($duration + $pause) * $nextIndex;
                 $yOffset = $nextIndex * $lineHeight;
                 $vacia = "m$x0,$yOffset h0";
-                $llena = "m$x0,$yOffset h$anchoUtil";
+                $llena = "m$x0,$yOffset h$recorrido";
                 $values = [$vacia, $vacia, $llena, $llena];
                 $keyTimes = ["0", $i / $nextIndex, $i / $nextIndex + $duration / $lineDuration, "1"];
                 ?>
@@ -108,7 +126,7 @@ $maxLargo = max($largos) ?: 1;
         ?>
     <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
         dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
-        x='<?= $center ? "50%" : $padding ?>' text-anchor='<?= $center ? "middle" : "start" ?>'
+        x='<?= $center ? "50%" : $padding ?>' y='<?= $yOffset ?>' text-anchor='<?= $center ? "middle" : "start" ?>'
         opacity='0'>&#9608;<animate attributeName='opacity' begin='d<?= $i ?>.begin'
             dur='<?= round($total) ?>ms' calcMode='discrete'
             values='0;1;0;1;0;0' keyTimes='0;<?= $k3 ?>;<?= $m1 ?>;<?= $m2 ?>;<?= $m3 ?>;1' /></text>
