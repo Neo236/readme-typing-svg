@@ -22,7 +22,9 @@ if (!defined("AVANCE_EM")) {
     <?= $fontCSS ?>
 
     <style>
-        /* cursor de bloque: parpadea mientras la linea esta escrita */
+        /* Solo para el cursor pegado al texto (center=true o multilinea). El
+           cursor de terminal no usa esta clase: su parpadeo va por SMIL para
+           poder quedarse solido mientras se escribe y mientras se borra. */
         .cursor { animation: blink 1s step-end infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     </style>
@@ -83,25 +85,68 @@ if (!defined("AVANCE_EM")) {
                 $k3 = ($tEscribir + $tSostener + $tBorrar) / $total;
 
                 $yOffset = $height / 2;
-                $vacia = "m$x0,$yOffset h0";
-                $llena = "m$x0,$yOffset h$recorrido";
-                $values = $freeze
-                    ? [$vacia, $llena, $llena, $llena, $llena]
-                    : [$vacia, $llena, $llena, $vacia, $vacia];
-                $keyTimes = ["0", $k1, $k2, $k3, "1"];
 
-                // El cursor vive en el punto de insercion: arranca donde va a
-                // caer el primer caracter, avanza junto con el texto y vuelve
-                // mientras se borra. Comparte keyTimes con el path para no
-                // desincronizarse nunca.
-                $xFin = $x0 + $recorrido;
-                $cursorX = $freeze
-                    ? [$x0, $xFin, $xFin, $xFin, $xFin]
-                    : [$x0, $xFin, $xFin, $x0, $x0];
+                // UN CARACTER POR PASO. Una consola no revela el texto
+                // deslizandolo: aparece una celda entera por vez, y el cursor
+                // salta a la celda siguiente. Con calcMode='discrete' el path
+                // toma exactamente m anchos de caracter, asi que se dibujan m
+                // glifos justos y el cursor cae pegado al ultimo, sin el medio
+                // caracter de solape que dejaba la interpolacion continua.
+                $ancho = $size * AVANCE_EM;      // una celda
+                $n = max(1, $largos[$i]);
+                $values = [];
+                $cursorX = [];
+                $keyTimes = [];
+                for ($m = 0; $m <= $n; $m++) {          // escritura
+                    $keyTimes[] = round($k1 * $m / $n, 5);
+                    $values[] = "m$x0,$yOffset h" . round($m * $ancho, 1);
+                    $cursorX[] = round($x0 + $m * $ancho, 1);
+                }
+                if (!$freeze) {                          // borrado
+                    for ($j = 1; $j <= $n; $j++) {
+                        $keyTimes[] = round($k2 + ($k3 - $k2) * $j / $n, 5);
+                        $values[] = "m$x0,$yOffset h" . round(($n - $j) * $ancho, 1);
+                        $cursorX[] = round($x0 + ($n - $j) * $ancho, 1);
+                    }
+                }
+                if ((float) $keyTimes[count($keyTimes) - 1] < 1) {
+                    $keyTimes[] = "1";                   // SMIL exige cerrar en 1
+                    $values[] = $values[count($values) - 1];
+                    $cursorX[] = $cursorX[count($cursorX) - 1];
+                }
+
+                // El cursor esta SOLIDO mientras se escribe y mientras se
+                // borra, y parpadea solo cuando la terminal quedo quieta.
+                $medioParpadeo = 500;   // ms
+                $opTiempos = ["0"];
+                $opValores = ["1"];
+                $parpadear = function ($desde, $hasta) use (&$opTiempos, &$opValores, $total, $medioParpadeo) {
+                    for ($j = 1; ; $j++) {
+                        $t = $desde + ($medioParpadeo * $j) / $total;
+                        if ($t >= $hasta) {
+                            return;
+                        }
+                        $opTiempos[] = round($t, 5);
+                        $opValores[] = $j % 2 === 1 ? "0" : "1";
+                    }
+                };
+                $parpadear($k1, $freeze ? 1 : $k2);
+                if (!$freeze) {
+                    if ($k2 > (float) $opTiempos[count($opTiempos) - 1]) {
+                        $opTiempos[] = round($k2, 5);
+                        $opValores[] = "1";
+                    }
+                    $parpadear($k3, 1);
+                }
+                if ((float) $opTiempos[count($opTiempos) - 1] < 1) {
+                    $opTiempos[] = "1";
+                    $opValores[] = $opValores[count($opValores) - 1];
+                }
                 ?>
                 <animate id='d<?= $i ?>' attributeName='d' begin='<?= $begin ?>'
                     dur='<?= round($total) ?>ms' fill='<?= $freeze ? "freeze" : "remove" ?>'
-                    values='<?= implode(" ; ", $values) ?>' keyTimes='<?= implode(";", $keyTimes) ?>' />
+                    calcMode='discrete'
+                    values='<?= implode(";", $values) ?>' keyTimes='<?= implode(";", $keyTimes) ?>' />
             <?php else: ?>
                 <!-- Multiline -->
                 <?php
@@ -143,10 +188,14 @@ if (!defined("AVANCE_EM")) {
             fill='<?= $freeze ? "freeze" : "remove" ?>' />
         <text font-family='"<?= $font ?>", monospace' fill='<?= $color ?>' font-size='<?= $size ?>'
             dominant-baseline='<?= $vCenter ? "middle" : "auto" ?>'
-            x='<?= $x0 ?>' y='<?= $yOffset ?>' text-anchor='start'
-            class='cursor'>&#9608;<animate attributeName='x' begin='d<?= $i ?>.begin'
+            x='<?= $x0 ?>' y='<?= $yOffset ?>' text-anchor='start'>&#9608;<animate
+                attributeName='x' begin='d<?= $i ?>.begin' calcMode='discrete'
                 dur='<?= round($total) ?>ms' values='<?= implode(";", $cursorX) ?>'
                 keyTimes='<?= implode(";", $keyTimes) ?>'
+                fill='<?= $freeze ? "freeze" : "remove" ?>' /><animate
+                attributeName='opacity' begin='d<?= $i ?>.begin' calcMode='discrete'
+                dur='<?= round($total) ?>ms' values='<?= implode(";", $opValores) ?>'
+                keyTimes='<?= implode(";", $opTiempos) ?>'
                 fill='<?= $freeze ? "freeze" : "remove" ?>' /></text></g>
 <?php endif; ?>
 <?php endfor; ?>
